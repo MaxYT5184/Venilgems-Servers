@@ -342,9 +342,6 @@ client.on(Events.MessageCreate, async message => {
   logEvent('info', `Message from ${message.author.tag} in #${message.channel.name}: ${message.content.substring(0, 50)}${message.content.length > 50 ? '...' : ''}`, logEmbed);
 });
 
-// Store verified users
-const verifiedUsers = new Set();
-
 // Handle member join events
 client.on(Events.GuildMemberAdd, async member => {
   // Log member join
@@ -394,23 +391,6 @@ client.on(Events.GuildMemberAdd, async member => {
     .setFooter({ text: 'Venilgem Services', iconURL: client.user.displayAvatarURL() });
   
   sendWelcome(welcomeEmbed);
-  
-  // Send verification DM to user with link
-  try {
-    const verifyEmbed = new EmbedBuilder()
-      .setTitle('Verification Required')
-      .setDescription(`Hello ${member}! Welcome to our server!\n\nTo access all channels, please verify yourself by clicking the link below:\n\n[Verify Me](https://discord.com/api/oauth2/authorize?client_id=${client.user.id}&scope=identify&response_type=code&redirect_uri=https://yourdomain.com/verify)\n\nThis helps us ensure that all members are genuine users.\n\nOnce verified, you'll gain access to all server channels.`)
-      .setColor(0x0099FF)
-      .setThumbnail(member.guild.iconURL())
-      .setTimestamp()
-      .setFooter({ text: 'Venilgem Services Verification System' });
-    
-    await member.send({ embeds: [verifyEmbed] });
-    logEvent('info', `Verification DM with link sent to ${member.user.tag}`);
-  } catch (error) {
-    console.error('Error sending verification DM:', error);
-    logEvent('error', `Failed to send verification DM to ${member.user.tag}: ${error.message}`);
-  }
 });
 
 // Handle member leave events
@@ -1129,41 +1109,21 @@ A staff member will assist you shortly.`)
         return await interaction.reply({ content: 'You do not have permission to use this command!', flags: [1 << 6] });
       }
       
-      // Check if there are verified users
-      if (verifiedUsers.size === 0) {
-        return await interaction.reply({ content: 'No verified users found.', flags: [1 << 6] });
-      }
-      
       // Get all guild members
       const members = await interaction.guild.members.fetch();
       
-      // Count how many verified users are already in the server
-      let alreadyInServer = 0;
-      let addedBack = 0;
-      const errors = [];
-      
-      // For each verified user, check if they're in the server
-      for (const userId of verifiedUsers) {
-        const member = members.get(userId);
-        if (!member) {
-          // User is verified but not in server, simulate adding them back
-          // In a real implementation, you would need to store invite information
-          // For now, we'll just log that they would be added back
-          addedBack++;
-        } else {
-          alreadyInServer++;
-        }
-      }
+      // Count total members
+      const totalMembers = members.size;
       
       // Create response embed
       const pullEmbed = new EmbedBuilder()
-        .setTitle('Pull Members Report')
-        .setDescription(`Verified users analysis completed.`)
+        .setTitle('Server Members Report')
+        .setDescription(`Server members analysis completed.`)
         .setColor(0x00FF00)
         .addFields(
-          { name: 'Verified Users', value: `${verifiedUsers.size}`, inline: true },
-          { name: 'Already in Server', value: `${alreadyInServer}`, inline: true },
-          { name: 'Would be Added Back', value: `${addedBack}`, inline: true }
+          { name: 'Total Members', value: `${totalMembers}`, inline: true },
+          { name: 'Online Members', value: `${members.filter(m => m.presence?.status !== 'offline').size}`, inline: true },
+          { name: 'Bot Accounts', value: `${members.filter(m => m.user.bot).size}`, inline: true }
         )
         .setTimestamp();
       
