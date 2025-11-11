@@ -3,6 +3,7 @@ const { config } = require('dotenv');
 const express = require('express');
 const path = require('path');
 const bcrypt = require('bcrypt');
+const fs = require('fs').promises;
 config();
 
 // Make client globally accessible for dashboard
@@ -39,6 +40,9 @@ const productTypes = [
   '100k followers'
 ];
 
+// Path to product keys file
+const PRODUCT_KEYS_FILE = path.join(__dirname, 'product-keys.json');
+
 // Generate a random product key
 function generateProductKey(type) {
   const prefix = type.split(' ')[0].toUpperCase();
@@ -47,26 +51,77 @@ function generateProductKey(type) {
   return `${prefix}-${randomPart}-${timestamp}`;
 }
 
+// Save product keys to file
+async function saveProductKeys() {
+  try {
+    // Convert Map to array for JSON serialization
+    const keysArray = Array.from(productKeys.values());
+    const data = JSON.stringify(keysArray, null, 2);
+    await fs.writeFile(PRODUCT_KEYS_FILE, data);
+    console.log(`Saved ${productKeys.size} product keys to file`);
+  } catch (error) {
+    console.error('Error saving product keys:', error);
+  }
+}
+
+// Load product keys from file
+async function loadProductKeys() {
+  try {
+    const data = await fs.readFile(PRODUCT_KEYS_FILE, 'utf8');
+    const keysArray = JSON.parse(data);
+    
+    // Clear existing keys
+    productKeys.clear();
+    
+    // Load keys from file
+    keysArray.forEach(keyData => {
+      // Convert date strings back to Date objects
+      keyData.createdAt = new Date(keyData.createdAt);
+      if (keyData.usedAt) {
+        keyData.usedAt = new Date(keyData.usedAt);
+      }
+      productKeys.set(keyData.key, keyData);
+    });
+    
+    console.log(`Loaded ${productKeys.size} product keys from file`);
+    return true;
+  } catch (error) {
+    if (error.code === 'ENOENT') {
+      console.log('Product keys file not found, will generate new keys');
+      return false;
+    }
+    console.error('Error loading product keys:', error);
+    return false;
+  }
+}
+
 // Initialize product keys (100 of each type)
-function initializeProductKeys() {
+async function initializeProductKeys() {
   console.log('Initializing product keys...');
   
-  // Generate 100 keys for each product type
-  productTypes.forEach(type => {
-    for (let i = 0; i < 100; i++) {
-      const key = generateProductKey(type);
-      productKeys.set(key, {
-        type: type,
-        key: key,
-        createdAt: new Date(),
-        used: false,
-        usedBy: null,
-        usedAt: null
-      });
-    }
-  });
+  // Try to load existing keys
+  const loaded = await loadProductKeys();
   
-  console.log(`Generated ${productKeys.size} product keys`);
+  if (!loaded) {
+    // Generate 100 keys for each product type if no file exists
+    productTypes.forEach(type => {
+      for (let i = 0; i < 100; i++) {
+        const key = generateProductKey(type);
+        productKeys.set(key, {
+          type: type,
+          key: key,
+          createdAt: new Date(),
+          used: false,
+          usedBy: null,
+          usedAt: null
+        });
+      }
+    });
+    
+    // Save the newly generated keys
+    await saveProductKeys();
+    console.log(`Generated and saved ${productKeys.size} product keys`);
+  }
 }
 
 // Initialize product keys on startup
@@ -1227,6 +1282,9 @@ A staff member will assist you shortly.`)
       
       // Log the action
       logEvent('info', `Product key check performed by ${interaction.user.tag} for key: ${productKey}`);
+      
+      // Save keys to file (in case any changes were made)
+      await saveProductKeys();
     } catch (error) {
       console.error('Error in check-product-key command:', error);
       await interaction.reply({ content: 'Failed to check product key. Please try again.', flags: [1 << 6] });
@@ -1260,6 +1318,9 @@ A staff member will assist you shortly.`)
         });
         newKeys.push(key);
       }
+      
+      // Save keys to file
+      await saveProductKeys();
       
       // Create embed with generated keys
       const keysEmbed = new EmbedBuilder()
@@ -1309,6 +1370,80 @@ A staff member will assist you shortly.`)
     } catch (error) {
       console.error('Error in generate-product-keys command:', error);
       await interaction.reply({ content: 'Failed to generate product keys. Please try again.', flags: [1 << 6] });
+    }
+  } else if (commandName === 'use-product-key') {
+    try {
+      // Check permissions - only admins can mark keys as used
+      if (!interaction.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
+        return await interaction.reply({ content: 'You do not have permission to mark product keys as used!', flags: [1 << 6] });
+      }
+      
+      const productKey = interaction.options.getString('key');
+      
+      // Check if the product key exists
+      const productInfo = productKeys.get(productKey);
+      
+      if (productInfo) {
+        if (productInfo.used) {
+          // Key already used
+          const errorEmbed = new EmbedBuilder()
+            .setTitle('⚠️ Key Already Used')
+            .setDescription('This product key has already been used.')
+            .setColor(0xFFA500)
+            .addFields(
+              { name: 'Product Type', value: productInfo.type, inline: true },
+              { name: 'Key', value: `||${productKey}||`, inline: true },
+              { name: 'Used By', value: productInfo.usedBy || 'Unknown', inline: true },
+              { name: 'Used At', value: `<t:${Math.floor(productInfo.usedAt.getTime() / 1000)}:R>`, inline: true }
+            )
+            .setTimestamp();
+          
+          await interaction.reply({ embeds: [errorEmbed], flags: [1 << 6] });
+        } else {
+          // Mark key as used
+          productInfo.used = true;
+          productInfo.usedBy = interaction.user.tag;
+          productInfo.usedAt = new Date();
+          
+          // Save keys to file
+          await saveProductKeys();
+          
+          // Valid product key - now marked as used
+          const keyEmbed = new EmbedBuilder()
+            .setTitle('✅ Product Key Used')
+            .setDescription(`This product key has been successfully marked as used!`)
+            .setColor(0x00FF00)
+            .addFields(
+              { name: 'Product Type', value: productInfo.type, inline: true },
+              { name: 'Key', value: `||${productKey}||`, inline: true },
+              { name: 'Status', value: '🔴 Used', inline: true },
+              { name: 'Used By', value: interaction.user.tag, inline: true },
+              { name: 'Used At', value: `<t:${Math.floor(productInfo.usedAt.getTime() / 1000)}:R>`, inline: true }
+            )
+            .setTimestamp();
+          
+          await interaction.reply({ embeds: [keyEmbed], flags: [1 << 6] });
+        }
+      } else {
+        // Invalid product key
+        const errorEmbed = new EmbedBuilder()
+          .setTitle('❌ Invalid Product Key')
+          .setDescription('This is not a valid product key.')
+          .setColor(0xFF0000)
+          .addFields(
+            { name: 'Key Provided', value: `||${productKey}||` },
+            { name: 'Status', value: 'This key does not exist in our database.' }
+          )
+          .setTimestamp();
+        
+        await interaction.reply({ embeds: [errorEmbed], flags: [1 << 6] });
+      }
+      
+      // Log the action
+      logEvent('info', `Product key marked as used by ${interaction.user.tag} for key: ${productKey}`);
+    } catch (error) {
+      console.error('Error in use-product-key command:', error);
+      await interaction.reply({ content: 'Failed to mark product key as used. Please try again.', flags: [1 << 6] });
     }
   }
 });
@@ -1526,6 +1661,18 @@ async function registerCommands() {
             type: 4, // INTEGER
             description: 'Number of keys to generate (max 10)',
             required: false
+          }
+        ]
+      },
+      {
+        name: 'use-product-key',
+        description: 'Mark a product key as used',
+        options: [
+          {
+            name: 'key',
+            type: 3, // STRING
+            description: 'The product key to mark as used',
+            required: true
           }
         ]
       }
