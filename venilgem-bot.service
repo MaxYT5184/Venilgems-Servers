@@ -1,0 +1,18 @@
+[Unit]
+Description=Venilgem Discord Bot
+After=network.target
+
+[Service]
+Type=simple
+User=max
+WorkingDirectory=/home/max/VENILGEM-SERVICES
+ExecStart=/usr/bin/node /home/max/VENILGEM-SERVICES/bot.js
+Restart=always
+RestartSec=10
+Environment=NODE_ENV=production
+
+# Environment variables from .env file
+EnvironmentFile=/home/max/VENILGEM-SERVICES/.env
+
+[Install]
+WantedBy=multi-user.target
