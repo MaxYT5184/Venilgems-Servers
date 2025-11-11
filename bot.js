@@ -27,6 +27,51 @@ global.client = client;
 // In-memory storage for logs
 global.botLogs = [];
 
+// Product key data structure
+const productKeys = new Map(); // Store valid product keys
+const productTypes = [
+  '100 followers',
+  '1k followers',
+  '5k followers',
+  '10k followers',
+  '50k followers',
+  '75k followers',
+  '100k followers'
+];
+
+// Generate a random product key
+function generateProductKey(type) {
+  const prefix = type.split(' ')[0].toUpperCase();
+  const randomPart = Math.random().toString(36).substring(2, 10).toUpperCase();
+  const timestamp = Date.now().toString().slice(-4);
+  return `${prefix}-${randomPart}-${timestamp}`;
+}
+
+// Initialize product keys (100 of each type)
+function initializeProductKeys() {
+  console.log('Initializing product keys...');
+  
+  // Generate 100 keys for each product type
+  productTypes.forEach(type => {
+    for (let i = 0; i < 100; i++) {
+      const key = generateProductKey(type);
+      productKeys.set(key, {
+        type: type,
+        key: key,
+        createdAt: new Date(),
+        used: false,
+        usedBy: null,
+        usedAt: null
+      });
+    }
+  });
+  
+  console.log(`Generated ${productKeys.size} product keys`);
+}
+
+// Initialize product keys on startup
+initializeProductKeys();
+
 // Create dashboard server
 const app = express();
 const PORT = process.env.DASHBOARD_PORT || 3000;
@@ -1135,6 +1180,136 @@ A staff member will assist you shortly.`)
       console.error('Error in pullmembers command:', error);
       await interaction.reply({ content: 'Failed to execute pullmembers command. Please try again.', flags: [1 << 6] });
     }
+  } else if (commandName === 'check-product-key') {
+    try {
+      const productKey = interaction.options.getString('key');
+      
+      // Check if the product key exists
+      const productInfo = productKeys.get(productKey);
+      
+      if (productInfo) {
+        // Valid product key
+        const keyEmbed = new EmbedBuilder()
+          .setTitle('✅ Valid Product Key')
+          .setDescription(`This is a valid product key!`)
+          .setColor(0x00FF00)
+          .addFields(
+            { name: 'Product Type', value: productInfo.type, inline: true },
+            { name: 'Key', value: `||${productKey}||`, inline: true },
+            { name: 'Status', value: productInfo.used ? '🔴 Used' : '🟢 Unused', inline: true },
+            { name: 'Created', value: `<t:${Math.floor(productInfo.createdAt.getTime() / 1000)}:R>`, inline: true }
+          )
+          .setTimestamp();
+        
+        // If the key has been used, show who used it
+        if (productInfo.used) {
+          keyEmbed.addFields(
+            { name: 'Used By', value: productInfo.usedBy || 'Unknown', inline: true },
+            { name: 'Used At', value: `<t:${Math.floor(productInfo.usedAt.getTime() / 1000)}:R>`, inline: true }
+          );
+        }
+        
+        await interaction.reply({ embeds: [keyEmbed], flags: [1 << 6] });
+      } else {
+        // Invalid product key
+        const errorEmbed = new EmbedBuilder()
+          .setTitle('❌ Invalid Product Key')
+          .setDescription('This is not a valid product key.')
+          .setColor(0xFF0000)
+          .addFields(
+            { name: 'Key Provided', value: `||${productKey}||` },
+            { name: 'Status', value: 'This key does not exist in our database.' }
+          )
+          .setTimestamp();
+        
+        await interaction.reply({ embeds: [errorEmbed], flags: [1 << 6] });
+      }
+      
+      // Log the action
+      logEvent('info', `Product key check performed by ${interaction.user.tag} for key: ${productKey}`);
+    } catch (error) {
+      console.error('Error in check-product-key command:', error);
+      await interaction.reply({ content: 'Failed to check product key. Please try again.', flags: [1 << 6] });
+    }
+  } else if (commandName === 'generate-product-keys') {
+    try {
+      // Check permissions - only admins can generate keys
+      if (!interaction.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
+        return await interaction.reply({ content: 'You do not have permission to generate product keys!', flags: [1 << 6] });
+      }
+      
+      const productType = interaction.options.getString('type');
+      const quantity = interaction.options.getInteger('quantity') || 1;
+      
+      // Limit quantity to prevent abuse
+      if (quantity > 10) {
+        return await interaction.reply({ content: 'You can only generate up to 10 keys at a time.', flags: [1 << 6] });
+      }
+      
+      // Generate new keys
+      const newKeys = [];
+      for (let i = 0; i < quantity; i++) {
+        const key = generateProductKey(productType);
+        productKeys.set(key, {
+          type: productType,
+          key: key,
+          createdAt: new Date(),
+          used: false,
+          usedBy: null,
+          usedAt: null
+        });
+        newKeys.push(key);
+      }
+      
+      // Create embed with generated keys
+      const keysEmbed = new EmbedBuilder()
+        .setTitle('🔑 Product Keys Generated')
+        .setDescription(`Successfully generated ${quantity} ${productType} key(s)`)
+        .setColor(0x0099FF)
+        .addFields(
+          { name: 'Product Type', value: productType, inline: true },
+          { name: 'Keys Generated', value: quantity.toString(), inline: true },
+          { name: 'Total Keys Now', value: productKeys.size.toString(), inline: true }
+        )
+        .setTimestamp();
+      
+      // Add keys to embed (but hide them for security)
+      if (newKeys.length <= 5) {
+        // If few keys, show them directly
+        keysEmbed.addFields(
+          { name: 'Generated Keys', value: newKeys.map((key, index) => `${index + 1}. ||${key}||`).join('\n') }
+        );
+      } else {
+        // If many keys, provide them in a follow-up message
+        keysEmbed.addFields(
+          { name: 'Generated Keys', value: `See follow-up message for your keys.` }
+        );
+      }
+      
+      await interaction.reply({ embeds: [keysEmbed], flags: [1 << 6] });
+      
+      // If we have many keys, send them in a follow-up DM for security
+      if (newKeys.length > 5) {
+        try {
+          const keysList = newKeys.map((key, index) => `${index + 1}. ${key}`).join('\n');
+          await interaction.user.send({
+            content: `**Generated Product Keys (${productType})**\n\n${keysList}`
+          });
+        } catch (dmError) {
+          // If DM fails, send as follow-up
+          await interaction.followUp({ 
+            content: `Here are your generated keys:\n${newKeys.map((key, index) => `${index + 1}. ${key}`).join('\n')}`, 
+            ephemeral: true 
+          });
+        }
+      }
+      
+      // Log the action
+      logEvent('info', `Generated ${quantity} ${productType} keys for ${interaction.user.tag}`);
+    } catch (error) {
+      console.error('Error in generate-product-keys command:', error);
+      await interaction.reply({ content: 'Failed to generate product keys. Please try again.', flags: [1 << 6] });
+    }
   }
 });
 
@@ -1314,6 +1489,45 @@ async function registerCommands() {
       {
         name: 'pullmembers',
         description: 'Add verified users back to the server'
+      },
+      {
+        name: 'check-product-key',
+        description: 'Check if a product key is valid',
+        options: [
+          {
+            name: 'key',
+            type: 3, // STRING
+            description: 'The product key to check',
+            required: true
+          }
+        ]
+      },
+      {
+        name: 'generate-product-keys',
+        description: 'Generate product keys for distribution',
+        options: [
+          {
+            name: 'type',
+            type: 3, // STRING
+            description: 'Product type (100 followers, 1k followers, etc.)',
+            required: true,
+            choices: [
+              { name: '100 followers', value: '100 followers' },
+              { name: '1k followers', value: '1k followers' },
+              { name: '5k followers', value: '5k followers' },
+              { name: '10k followers', value: '10k followers' },
+              { name: '50k followers', value: '50k followers' },
+              { name: '75k followers', value: '75k followers' },
+              { name: '100k followers', value: '100k followers' }
+            ]
+          },
+          {
+            name: 'quantity',
+            type: 4, // INTEGER
+            description: 'Number of keys to generate (max 10)',
+            required: false
+          }
+        ]
       }
     ];
 
