@@ -61,6 +61,12 @@ A Discord bot for handling server logs, slash commands, and ticket system.
 - `/giveaway_reroll <message_id>` - Reroll a giveaway winner
 - `/restock <channel_id> <amount>` - Announce a product restock
 - `/pingeveryone <password> <message>` - Send a message to all server members (cooldown protected)
+- `/share-content <content> <platforms> [image_url] [video_url]` - Share server content to social media platforms
+- `/server-stats` - Display server statistics and analytics
+- `/invite-leaderboard [limit]` - Show the invite leaderboard
+- `/invite-count [user]` - Show your invite count
+- `/level-leaderboard [limit]` - Show the level leaderboard
+- `/level [user]` - Show your level and XP
 
 ## Ticket System
 
@@ -124,6 +130,26 @@ The bot includes a secure ping everyone system with the following features:
 4. **Error Handling**: Failed deliveries are logged
 5. **Comprehensive Logging**: All mass messages are logged
 
+## Social Media Integration
+
+The bot includes social media integration features that allow server administrators to share content from the Discord server to various social media platforms.
+
+### Share Content Command
+
+- `/share-content <content> <platforms> [image_url] [video_url]` - Share server content to social media platforms
+  - `content`: The content to share
+  - `platforms`: Comma-separated list of platforms (twitter,instagram,tiktok)
+  - `image_url`: URL of image to share (optional)
+  - `video_url`: URL of video to share (optional, required for TikTok)
+
+### Features
+
+1. **Multi-Platform Sharing**: Share content to Twitter, Instagram, and TikTok simultaneously
+2. **Media Support**: Include images or videos with your posts
+3. **Permission-Based**: Only administrators can use the sharing commands
+4. **Detailed Logging**: All sharing activities are logged
+5. **Error Handling**: Comprehensive error handling for failed shares
+
 ## Restock System
 
 The bot includes an advanced restock announcement system with the following features:
@@ -147,6 +173,26 @@ The bot includes an advanced restock announcement system with the following feat
 3. **Confirmation Message**: Staff receive confirmation with a link to the announcement
 4. **Activity Status**: Bot shows "Watching for restocks" in its status
 5. **Comprehensive Logging**: All restock announcements are logged
+
+## Invite Tracking System
+
+The bot includes an invite tracking system that monitors how users join the server and rewards those who invite others.
+
+### Invite Commands
+
+- `/invite-leaderboard [limit]` - Show the invite leaderboard
+  - `limit`: Number of top inviters to show (default: 10)
+- `/invite-count [user]` - Show your invite count
+  - `user`: User to check invite count for (default: yourself)
+
+### Features
+
+1. **Automatic Tracking**: Tracks which invite links users use to join the server
+2. **Leaderboard**: Shows top inviters in the server
+3. **Individual Stats**: Users can check their own invite count
+4. **Vanity URL Support**: Works with server vanity URLs
+5. **Persistent Data**: Invite data is saved to disk
+6. **Detailed Logging**: All invite activities are logged
 
 ## Giveaway System
 
@@ -178,3 +224,33 @@ The bot includes a full-featured giveaway system with the following capabilities
 3. Users click "Enter Giveaway" or "Leave Giveaway" buttons to participate
 4. When the timer expires, winners are randomly selected
 5. Winners are announced in the giveaway channel
+
+## Level System
+
+The bot includes a level and XP system to encourage user engagement and activity.
+
+### Level Commands
+
+- `/level-leaderboard [limit]` - Show the level leaderboard
+  - `limit`: Number of top users to show (default: 10)
+- `/level [user]` - Show your level and XP
+  - `user`: User to check level for (default: yourself)
+
+### Features
+
+1. **XP Gain**: Users gain XP for sending messages
+2. **Level Progression**: Users level up as they gain more XP
+3. **Cooldown System**: Prevents XP farming by limiting gains to once per minute
+4. **Progress Visualization**: Visual progress bar showing progress to next level
+5. **Level Up Announcements**: Automatic announcements when users level up
+6. **Leaderboard**: Shows top active members in the server
+7. **Persistent Data**: Level data is saved to disk
+8. **Detailed Logging**: All level activities are logged
+
+### How the Level System Works
+
+1. Users gain 1 XP for each message they send (with a 1-minute cooldown)
+2. Users level up when they accumulate enough XP
+3. Higher levels require more XP to achieve
+4. Users can track their progress with the `/level` command
+5. Server-wide rankings are available with the `/level-leaderboard` command

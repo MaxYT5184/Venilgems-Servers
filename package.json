@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node bot.js",
     "dev": "nodemon bot.js",
-    "test": "node --check bot.js"
+    "test": "node --check bot.js",
+    "replit": "node bot.js"
   },
   "keywords": [
     "discord",

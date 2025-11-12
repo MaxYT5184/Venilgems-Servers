@@ -127,6 +127,9 @@ async function initializeProductKeys() {
 // Initialize product keys on startup
 initializeProductKeys();
 
+// Keep alive server for Replit
+const keepAlive = require('./keep_alive');
+
 // Create dashboard server
 const app = express();
 const PORT = process.env.DASHBOARD_PORT || 3000;
@@ -169,6 +172,11 @@ function requireAuth(req, res, next) {
 // Routes
 app.get('/', requireAuth, (req, res) => {
   res.render('dashboard');
+});
+
+// Health check endpoint for UptimeRobot
+app.get('/health', (req, res) => {
+  res.status(200).send('OK');
 });
 
 app.get('/login', (req, res) => {
